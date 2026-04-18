@@ -43,6 +43,9 @@ export default function ProfilePage() {
   const [passError, setPassError] = useState<string | null>(null);
   const [passSuccess, setPassSuccess] = useState<string | null>(null);
   const [isSubmittingPass, setIsSubmittingPass] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -120,7 +123,7 @@ export default function ProfilePage() {
 
       // 4. Update user profile
       const updateRes = await axios.put('/api/auth/me', {
-        avatar: publicUrl
+        avatar_url: publicUrl
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -135,6 +138,32 @@ export default function ProfilePage() {
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
+  const handleUpdateProfile = async () => {
+    if (!editUsername || editUsername === profile?.username) {
+      setIsEditing(false);
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    const token = localStorage.getItem('auth_token');
+
+    try {
+      const response = await axios.put('/api/auth/me', {
+        username: editUsername
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setProfile(response.data);
+      setIsEditing(false);
+    } catch (err: any) {
+      console.error('Failed to update profile', err);
+      alert(err.response?.data?.error || 'Gagal memperbarui profil');
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPassError(null);
@@ -315,27 +344,91 @@ export default function ProfilePage() {
           {/* Content Area */}
           <div style={{ padding: '80px 40px 40px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
-              <div>
-                <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>{profile.username}</h1>
+              <div style={{ flex: 1 }}>
+                {isEditing ? (
+                  <input 
+                    type="text" 
+                    value={editUsername} 
+                    onChange={(e) => setEditUsername(e.target.value)} 
+                    placeholder="Username"
+                    autoFocus
+                    style={{ 
+                      fontSize: '28px', 
+                      fontWeight: 700, 
+                      marginBottom: '8px', 
+                      border: 'none', 
+                      borderBottom: '2px solid var(--primary)', 
+                      outline: 'none',
+                      width: '100%',
+                      background: 'transparent'
+                    }} 
+                  />
+                ) : (
+                  <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>{profile.username}</h1>
+                )}
                 <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
                   <Mail size={14} />
                   {profile.email}
                 </p>
               </div>
-              <button style={{ 
-                background: 'var(--primary)', 
-                color: 'white', 
-                padding: '10px 20px', 
-                borderRadius: '12px', 
-                fontWeight: 600, 
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <Edit size={16} />
-                Edit Profil
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {isEditing ? (
+                  <>
+                    <button 
+                      onClick={() => setIsEditing(false)}
+                      disabled={isUpdatingProfile}
+                      style={{ 
+                        background: '#f1f5f9', 
+                        color: 'var(--text-muted)', 
+                        padding: '10px 16px', 
+                        borderRadius: '12px', 
+                        fontWeight: 600, 
+                        fontSize: '14px'
+                      }}
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      onClick={handleUpdateProfile}
+                      disabled={isUpdatingProfile}
+                      style={{ 
+                        background: 'var(--primary)', 
+                        color: 'white', 
+                        padding: '10px 20px', 
+                        borderRadius: '12px', 
+                        fontWeight: 600, 
+                        fontSize: '14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {isUpdatingProfile ? <Loader2 className="animate-spin" size={16} /> : 'Simpan'}
+                    </button>
+                  </>
+                ) : (
+                  <button 
+                    onClick={() => {
+                      setEditUsername(profile.username);
+                      setIsEditing(true);
+                    }}
+                    style={{ 
+                      background: 'var(--primary)', 
+                      color: 'white', 
+                      padding: '10px 20px', 
+                      borderRadius: '12px', 
+                      fontWeight: 600, 
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <Edit size={16} />
+                    Edit Profil
+                  </button>
+                )}
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
