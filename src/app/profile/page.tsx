@@ -1,0 +1,350 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { 
+  User, 
+  Mail, 
+  Calendar, 
+  Shield, 
+  ArrowLeft, 
+  LogOut, 
+  Edit,
+  Camera,
+  Loader2,
+  Lock,
+  ArrowRight
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import Link from 'next/link';
+
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      router.push('/');
+      return;
+    }
+
+    const fetchProfile = async () => {
+      try {
+        const response = await axios.get('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setProfile(response.data);
+      } catch (err: any) {
+        console.error('Failed to fetch profile', err);
+        if (err.response?.status === 401) {
+          localStorage.removeItem('auth_token');
+          router.push('/');
+        } else {
+          setError('Gagal memuat profil');
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    router.push('/');
+  };
+
+  const handleCameraClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Tolong pilih file gambar');
+      return;
+    }
+
+    setIsUploading(true);
+    const token = localStorage.getItem('auth_token');
+
+    try {
+      // 1. Get presigned URL
+      const presignedRes = await axios.post('/api/s3/presigned-url', {
+        file_name: `${Date.now()}-${file.name}`
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const { upload_url } = presignedRes.data;
+
+      // 2. Upload file to S3/MinIO
+      await axios.put(upload_url, file, {
+        headers: {
+          'Content-Type': file.type
+        }
+      });
+
+      // 3. Construct public URL (stripping query params from presigned URL)
+      // Note: This assumes the bucket is public-read or similar.
+      // Alternatively, the backend could return the public URL.
+      const publicUrl = upload_url.split('?')[0];
+
+      // 4. Update user profile
+      const updateRes = await axios.put('/api/auth/me', {
+        avatar: publicUrl
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setProfile(updateRes.data);
+      alert('Avatar berhasil diperbarui!');
+    } catch (err) {
+      console.error('Failed to upload avatar', err);
+      alert('Gagal mengupload avatar');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)' }}>
+        <Loader2 className="animate-spin" size={40} color="var(--primary)" />
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)' }}>
+        <p style={{ color: 'var(--error)' }}>{error || 'Profil tidak ditemukan'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '40px' }}>
+      <main style={{ maxWidth: '800px', margin: '0 auto' }}>
+        {/* Hidden File Input */}
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          onChange={handleFileChange} 
+          style={{ display: 'none' }} 
+          accept="image/*"
+        />
+
+        {/* Header Navigation */}
+        <div style={{ marginBottom: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Link href="/dashboard" style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px', 
+            color: 'var(--text-muted)', 
+            fontWeight: 500,
+            fontSize: '14px',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            transition: 'all 0.2s',
+            background: 'white',
+            border: '1px solid var(--card-border)'
+          }}>
+            <ArrowLeft size={18} />
+            Kembali ke Dashboard
+          </Link>
+          <button 
+            onClick={handleLogout}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px', 
+              background: 'rgba(239, 68, 68, 0.1)', 
+              color: '#b91c1c', 
+              padding: '10px 16px', 
+              borderRadius: '12px',
+              fontSize: '14px',
+              fontWeight: 600
+            }}
+          >
+            <LogOut size={18} />
+            Keluar
+          </button>
+        </div>
+
+        {/* Profile Card */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ 
+            background: 'white', 
+            borderRadius: '32px', 
+            overflow: 'hidden', 
+            border: '1px solid var(--card-border)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.05)'
+          }}
+        >
+          {/* Cover Area */}
+          <div style={{ height: '160px', background: 'linear-gradient(135deg, var(--primary), #8b5cf6)', position: 'relative' }}>
+            <div style={{ 
+              position: 'absolute', 
+              bottom: '-60px', 
+              left: '40px', 
+              width: '120px', 
+              height: '120px', 
+              borderRadius: '32px', 
+              background: 'white', 
+              padding: '6px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ 
+                width: '100%', 
+                height: '100%', 
+                borderRadius: '26px', 
+                background: '#f1f5f9', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                color: 'var(--primary)',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                {isUploading ? (
+                  <Loader2 className="animate-spin" size={32} />
+                ) : profile.avatar ? (
+                  <img src={profile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <User size={48} />
+                )}
+                
+                <button 
+                  onClick={handleCameraClick}
+                  disabled={isUploading}
+                  style={{ 
+                    position: 'absolute', 
+                    bottom: '-4px', 
+                    right: '-4px', 
+                    background: 'white', 
+                    padding: '8px', 
+                    borderRadius: '10px', 
+                    border: '1px solid #e2e8f0',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    zIndex: 10
+                  }}
+                >
+                  <Camera size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Content Area */}
+          <div style={{ padding: '80px 40px 40px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '40px' }}>
+              <div>
+                <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>{profile.username}</h1>
+                <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+                  <Mail size={14} />
+                  {profile.email}
+                </p>
+              </div>
+              <button style={{ 
+                background: 'var(--primary)', 
+                color: 'white', 
+                padding: '10px 20px', 
+                borderRadius: '12px', 
+                fontWeight: 600, 
+                fontSize: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Edit size={16} />
+                Edit Profil
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+              <div style={{ 
+                padding: '24px', 
+                background: '#f8fafc', 
+                borderRadius: '24px', 
+                border: '1px solid #e2e8f0'
+              }}>
+                <div style={{ color: 'var(--primary)', marginBottom: '16px' }}><Shield size={20} /></div>
+                <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>User ID</h3>
+                <p style={{ fontSize: '14px', fontWeight: 600, wordBreak: 'break-all', fontFamily: 'monospace' }}>{profile.id}</p>
+              </div>
+
+              <div style={{ 
+                padding: '24px', 
+                background: '#f8fafc', 
+                borderRadius: '24px', 
+                border: '1px solid #e2e8f0'
+              }}>
+                <div style={{ color: 'var(--primary)', marginBottom: '16px' }}><Calendar size={20} /></div>
+                <h3 style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>Member Sejak</h3>
+                <p style={{ fontSize: '14px', fontWeight: 600 }}>{new Date(profile.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div style={{ marginTop: '40px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Keamanan</h3>
+              <div style={{ background: '#f8fafc', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ 
+                  padding: '16px 24px', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  borderBottom: '1px solid #e2e8f0',
+                  cursor: 'pointer'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', background: 'white', borderRadius: '10px', color: 'var(--text-muted)' }}><Lock size={16} /></div>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Ganti Password</span>
+                  </div>
+                  <ArrowRight size={16} color="#cbd5e1" />
+                </div>
+                <div style={{ 
+                  padding: '16px 24px', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  cursor: 'pointer'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ padding: '8px', background: 'white', borderRadius: '10px', color: 'var(--text-muted)' }}><Shield size={16} /></div>
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Autentikasi Dua Faktor</span>
+                  </div>
+                  <ArrowRight size={16} color="#cbd5e1" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </main>
+    </div>
+  );
+}
