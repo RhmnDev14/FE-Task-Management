@@ -13,9 +13,11 @@ import {
   Camera,
   Loader2,
   Lock,
-  ArrowRight
+  ArrowRight,
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Link from 'next/link';
 
@@ -34,6 +36,13 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passError, setPassError] = useState<string | null>(null);
+  const [passSuccess, setPassSuccess] = useState<string | null>(null);
+  const [isSubmittingPass, setIsSubmittingPass] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -124,6 +133,48 @@ export default function ProfilePage() {
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassError(null);
+    setPassSuccess(null);
+
+    if (newPassword !== confirmPassword) {
+      setPassError('Password baru dan konfirmasi tidak cocok');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPassError('Password baru minimal 6 karakter');
+      return;
+    }
+
+    setIsSubmittingPass(true);
+    const token = localStorage.getItem('auth_token');
+
+    try {
+      await axios.put('/api/auth/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setPassSuccess('Password berhasil diperbarui!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setIsChangingPassword(false);
+        setPassSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Failed to change password', err);
+      const msg = err.response?.data?.error || 'Gagal memperbarui password';
+      setPassError(msg);
+    } finally {
+      setIsSubmittingPass(false);
     }
   };
 
@@ -231,10 +282,12 @@ export default function ProfilePage() {
               }}>
                 {isUploading ? (
                   <Loader2 className="animate-spin" size={32} />
-                ) : profile.avatar ? (
-                  <img src={profile.avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <User size={48} />
+                  <img 
+                    src={profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=4f46e5&color=fff&size=256`} 
+                    alt="Avatar" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
                 )}
                 
                 <button 
@@ -313,20 +366,135 @@ export default function ProfilePage() {
             <div style={{ marginTop: '40px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px' }}>Keamanan</h3>
               <div style={{ background: '#f8fafc', borderRadius: '24px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <div style={{ 
-                  padding: '16px 24px', 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center',
-                  borderBottom: '1px solid #e2e8f0',
-                  cursor: 'pointer'
-                }}>
+                <div 
+                  onClick={() => setIsChangingPassword(!isChangingPassword)}
+                  style={{ 
+                    padding: '16px 24px', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    borderBottom: isChangingPassword ? '1px solid #e2e8f0' : '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    background: isChangingPassword ? '#f1f5f9' : 'transparent',
+                    transition: 'all 0.2s'
+                  }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ padding: '8px', background: 'white', borderRadius: '10px', color: 'var(--text-muted)' }}><Lock size={16} /></div>
-                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Ganti Password</span>
+                    <div style={{ padding: '8px', background: 'white', borderRadius: '10px', color: isChangingPassword ? 'var(--primary)' : 'var(--text-muted)' }}>
+                      <Lock size={16} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '14px', fontWeight: 500, display: 'block' }}>Ganti Password</span>
+                      {isChangingPassword && <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Amankan akun anda dengan password baru</span>}
+                    </div>
                   </div>
-                  <ArrowRight size={16} color="#cbd5e1" />
+                  <motion.div
+                    animate={{ rotate: isChangingPassword ? 90 : 0 }}
+                  >
+                    <ArrowRight size={16} color="#cbd5e1" />
+                  </motion.div>
                 </div>
+
+                <AnimatePresence>
+                  {isChangingPassword && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <form onSubmit={handleChangePassword} style={{ padding: '24px' }}>
+                        <div style={{ display: 'grid', gap: '16px' }}>
+                          <div>
+                            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Password Saat Ini</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={currentPassword}
+                              onChange={(e) => setCurrentPassword(e.target.value)}
+                              placeholder="••••••••"
+                              style={{ 
+                                width: '100%', 
+                                padding: '12px 16px', 
+                                borderRadius: '12px', 
+                                border: '1px solid #e2e8f0',
+                                fontSize: '14px'
+                              }} 
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Password Baru</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="••••••••"
+                              style={{ 
+                                width: '100%', 
+                                padding: '12px 16px', 
+                                borderRadius: '12px', 
+                                border: '1px solid #e2e8f0',
+                                fontSize: '14px'
+                              }} 
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}>Konfirmasi Password Baru</label>
+                            <input 
+                              type="password" 
+                              required
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              placeholder="••••••••"
+                              style={{ 
+                                width: '100%', 
+                                padding: '12px 16px', 
+                                borderRadius: '12px', 
+                                border: '1px solid #e2e8f0',
+                                fontSize: '14px'
+                              }} 
+                            />
+                          </div>
+
+                          {passError && (
+                            <div style={{ color: '#ef4444', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <AlertCircle size={14} />
+                              {passError}
+                            </div>
+                          )}
+
+                          {passSuccess && (
+                            <div style={{ color: '#10b981', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Sparkles size={14} />
+                              {passSuccess}
+                            </div>
+                          )}
+
+                          <button 
+                            type="submit"
+                            disabled={isSubmittingPass}
+                            style={{ 
+                              background: 'var(--primary)', 
+                              color: 'white', 
+                              padding: '12px', 
+                              borderRadius: '12px', 
+                              fontWeight: 600,
+                              fontSize: '14px',
+                              marginTop: '8px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px'
+                            }}
+                          >
+                            {isSubmittingPass ? <Loader2 className="animate-spin" size={18} /> : 'Update Password'}
+                          </button>
+                        </div>
+                      </form>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div style={{ 
                   padding: '16px 24px', 
                   display: 'flex', 
