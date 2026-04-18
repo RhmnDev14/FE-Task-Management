@@ -34,7 +34,7 @@ interface Task {
 }
 
 interface JWTPayload {
-  sub: string;
+  id: string;
   exp: number;
 }
 
@@ -50,6 +50,7 @@ export default function DashboardPage() {
   // New task form state
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const storedToken = localStorage.getItem('auth_token');
@@ -61,8 +62,8 @@ export default function DashboardPage() {
     try {
       const decoded: JWTPayload = jwtDecode(storedToken);
       setToken(storedToken);
-      setUserId(decoded.sub);
-      fetchTasks(decoded.sub, storedToken);
+      setUserId(decoded.id);
+      fetchTasks(storedToken);
     } catch (err) {
       console.error('Failed to decode token', err);
       localStorage.removeItem('auth_token');
@@ -70,11 +71,24 @@ export default function DashboardPage() {
     }
   }, [router]);
 
-  const fetchTasks = async (uid: string, tk: string) => {
+  useEffect(() => {
+    if (token) {
+      const delayDebounceFn = setTimeout(() => {
+        fetchTasks(token, searchQuery);
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchQuery, token]);
+
+  const fetchTasks = async (tk: string, query?: string) => {
     setIsLoading(true);
     try {
-      // Backend has /api/tasks/user/{id_user}
-      const response = await axios.get(`/api/tasks/user/${uid}`, {
+      const endpoint = query 
+        ? `/api/tasks/search?q=${encodeURIComponent(query)}`
+        : '/api/tasks/my';
+        
+      const response = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${tk}` }
       });
       setTasks(response.data);
@@ -102,7 +116,7 @@ export default function DashboardPage() {
       
       setNewTaskName('');
       setNewTaskDesc('');
-      fetchTasks(userId, token);
+      fetchTasks(token);
     } catch (err: any) {
       console.error('Failed to create task', err);
       alert(err.response?.data?.error || 'Gagal membuat tugas');
@@ -118,7 +132,7 @@ export default function DashboardPage() {
       await axios.delete(`/api/tasks/${taskId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      fetchTasks(userId, token);
+      fetchTasks(token);
     } catch (err: any) {
       console.error('Failed to delete task', err);
       alert('Gagal menghapus tugas');
@@ -200,13 +214,18 @@ export default function DashboardPage() {
                 <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
                   placeholder="Cari tugas..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ 
                     padding: '12px 12px 12px 40px', 
                     borderRadius: '12px', 
                     border: '1px solid var(--card-border)', 
                     background: 'var(--card-bg)', 
                     color: 'var(--foreground)',
-                    width: '240px'
+                    width: '240px',
+                    outline: 'none',
+                    transition: 'all 0.2s',
+                    boxShadow: searchQuery ? '0 0 0 3px rgba(79, 70, 229, 0.1)' : 'none'
                   }} 
                 />
              </div>
