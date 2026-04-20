@@ -20,6 +20,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Link from 'next/link';
+import LoadingSpinner from '../components/LoadingSpinner';
+import ProgressBar from '../components/ProgressBar';
 
 interface UserProfile {
   id: string;
@@ -208,23 +210,38 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)' }}>
-        <Loader2 className="animate-spin" size={40} color="var(--primary)" />
-      </div>
-    );
+    return <LoadingSpinner variant="fullpage" message="Memuat profil..." />;
   }
 
   if (error || !profile) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)' }}>
-        <p style={{ color: 'var(--error)' }}>{error || 'Profil tidak ditemukan'}</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--background)', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ 
+          padding: '16px', 
+          background: 'rgba(239, 68, 68, 0.1)', 
+          borderRadius: '16px', 
+          color: '#ef4444' 
+        }}>
+          <AlertCircle size={32} />
+        </div>
+        <p style={{ color: '#b91c1c', fontWeight: 600 }}>{error || 'Profil tidak ditemukan'}</p>
+        <Link href="/dashboard" style={{ 
+          color: 'var(--primary)', 
+          fontWeight: 500, 
+          fontSize: '14px', 
+          marginTop: '8px'
+        }}>
+          ← Kembali ke Dashboard
+        </Link>
       </div>
     );
   }
 
+  const isBusy = isUploading || isUpdatingProfile || isSubmittingPass;
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--background)', padding: '40px' }}>
+      <ProgressBar show={isBusy} />
       <main style={{ maxWidth: '800px', margin: '0 auto' }}>
         {/* Hidden File Input */}
         <input 
