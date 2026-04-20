@@ -28,6 +28,7 @@ interface UserProfile {
   username: string;
   email: string;
   avatar_url?: string;
+  role_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -415,7 +416,22 @@ export default function ProfilePage() {
                     }} 
                   />
                 ) : (
-                  <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '4px' }}>{profile.username}</h1>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
+                    <h1 style={{ fontSize: '28px', fontWeight: 700 }}>{profile.username}</h1>
+                    {profile.role_name && (
+                      <span style={{ 
+                        padding: '4px 10px', 
+                        background: 'rgba(79, 70, 229, 0.1)', 
+                        color: 'var(--primary)', 
+                        borderRadius: '20px', 
+                        fontSize: '12px', 
+                        fontWeight: 600,
+                        marginTop: '4px'
+                      }}>
+                        {profile.role_name}
+                      </span>
+                    )}
+                  </div>
                 )}
                 <p style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
                   <Mail size={14} />

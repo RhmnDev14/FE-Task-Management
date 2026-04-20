@@ -42,6 +42,14 @@ interface JWTPayload {
   exp: number;
 }
 
+interface UserProfile {
+  id: string;
+  username: string;
+  email: string;
+  avatar_url?: string;
+  role_name?: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
@@ -58,6 +66,8 @@ export default function DashboardPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [displayAvatarUrl, setDisplayAvatarUrl] = useState<string | null>(null);
 
   // New task form state
   const [newTaskName, setNewTaskName] = useState('');
@@ -76,12 +86,44 @@ export default function DashboardPage() {
       setToken(storedToken);
       setUserId(decoded.id);
       fetchTasks(storedToken);
+      fetchProfile(storedToken);
     } catch (err) {
       console.error('Failed to decode token', err);
       localStorage.removeItem('auth_token');
       router.push('/');
     }
   }, [router]);
+
+  const fetchProfile = async (tk: string) => {
+    try {
+      const response = await axios.get('/api/auth/me', {
+        headers: { Authorization: `Bearer ${tk}` }
+      });
+      const userData = response.data;
+      setProfile(userData);
+      
+      // Fetch presigned view URL if avatar exists
+      if (userData.avatar_url) {
+        try {
+          const fileName = userData.avatar_url.includes('/') 
+            ? userData.avatar_url.split('/').pop() 
+            : userData.avatar_url;
+            
+          const viewRes = await axios.get(`/api/s3/view/${fileName}`, {
+            headers: { Authorization: `Bearer ${tk}` }
+          });
+          setDisplayAvatarUrl(viewRes.data.url);
+        } catch (viewErr) {
+          console.error('Failed to fetch avatar view URL', viewErr);
+          if (userData.avatar_url.startsWith('http')) {
+            setDisplayAvatarUrl(userData.avatar_url);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch profile', err);
+    }
+  };
 
   useEffect(() => {
     if (token) {
@@ -217,19 +259,42 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <Link href="/profile" style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px', 
-            padding: '10px 16px', 
-            borderRadius: '12px', 
-            color: 'var(--text-muted)',
-            fontWeight: 500,
-            fontSize: '14px'
-          }}>
-            <User size={18} />
-            <span>Profil</span>
-          </Link>
+          {profile && (
+            <Link href="/profile" style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              padding: '6px 12px', 
+              paddingRight: '16px',
+              borderRadius: '16px', 
+              background: 'rgba(79, 70, 229, 0.05)',
+              border: '1px solid rgba(79, 70, 229, 0.1)',
+              transition: 'all 0.2s',
+              textDecoration: 'none'
+            }}>
+              <div style={{ 
+                width: '36px', 
+                height: '36px', 
+                borderRadius: '10px', 
+                overflow: 'hidden',
+                background: '#f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid white'
+              }}>
+                <img 
+                  src={displayAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=4f46e5&color=fff&size=256`} 
+                  alt="Avatar" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)', lineHeight: 1.2 }}>{profile.username}</span>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--primary)', opacity: 0.8 }}>{profile.role_name || 'User'}</span>
+              </div>
+            </Link>
+          )}
           <button 
             onClick={handleLogout}
             style={{ 
