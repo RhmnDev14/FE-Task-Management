@@ -27,7 +27,7 @@ interface UserProfile {
   id: string;
   username: string;
   email: string;
-  avatar?: string;
+  avatar_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editUsername, setEditUsername] = useState('');
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [displayAvatarUrl, setDisplayAvatarUrl] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,7 +63,29 @@ export default function ProfilePage() {
         const response = await axios.get('/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
-        setProfile(response.data);
+        const userData = response.data;
+        setProfile(userData);
+        
+        // Fetch presigned view URL if avatar exists
+        if (userData.avatar_url) {
+          try {
+            // Extract filename if it's a full URL
+            const fileName = userData.avatar_url.includes('/') 
+              ? userData.avatar_url.split('/').pop() 
+              : userData.avatar_url;
+              
+            const viewRes = await axios.get(`/api/s3/view/${fileName}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            setDisplayAvatarUrl(viewRes.data.url);
+          } catch (viewErr) {
+            console.error('Failed to fetch avatar view URL', viewErr);
+            // Fallback to original avatar field if view API fails
+            if (userData.avatar_url.startsWith('http')) {
+              setDisplayAvatarUrl(userData.avatar_url);
+            }
+          }
+        }
       } catch (err: any) {
         console.error('Failed to fetch profile', err);
         if (err.response?.status === 401) {
@@ -103,8 +126,9 @@ export default function ProfilePage() {
 
     try {
       // 1. Get presigned URL
+      const fileName = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`;
       const presignedRes = await axios.post('/api/s3/presigned-url', {
-        file_name: `${Date.now()}-${file.name}`
+        file_name: fileName
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -118,19 +142,29 @@ export default function ProfilePage() {
         }
       });
 
-      // 3. Construct public URL (stripping query params from presigned URL)
-      // Note: This assumes the bucket is public-read or similar.
-      // Alternatively, the backend could return the public URL.
-      const publicUrl = upload_url.split('?')[0];
-
-      // 4. Update user profile
+      // 3. Update user profile with just the file name
+      // This allows the view API to handle URL generation
       const updateRes = await axios.put('/api/auth/me', {
-        avatar_url: publicUrl
+        avatar_url: fileName
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setProfile(updateRes.data);
+      const updatedProfile = updateRes.data;
+      setProfile(updatedProfile);
+      
+      // 4. Fetch the new view URL immediately
+      try {
+        const viewRes = await axios.get(`/api/s3/view/${fileName}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setDisplayAvatarUrl(viewRes.data.url);
+      } catch (viewErr) {
+        console.error('Failed to fetch new avatar view URL', viewErr);
+        // Fallback to the direct URL if possible
+        setDisplayAvatarUrl(upload_url.split('?')[0]);
+      }
+      
       alert('Avatar berhasil diperbarui!');
     } catch (err) {
       console.error('Failed to upload avatar', err);
@@ -330,7 +364,7 @@ export default function ProfilePage() {
                   <Loader2 className="animate-spin" size={32} />
                 ) : (
                   <img 
-                    src={profile.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=4f46e5&color=fff&size=256`} 
+                    src={displayAvatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.username)}&background=4f46e5&color=fff&size=256`} 
                     alt="Avatar" 
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                   />
