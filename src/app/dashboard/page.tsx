@@ -462,34 +462,6 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Stats Summary Panel */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(4, 1fr)', 
-          gap: '20px', 
-          marginBottom: '40px',
-          background: 'rgba(99, 102, 241, 0.03)',
-          padding: '24px',
-          borderRadius: '32px',
-          border: '1px solid rgba(99, 102, 241, 0.08)'
-        }}>
-          {[
-            { label: 'Total Tugas', value: pagination.totalItems, icon: <Inbox size={18} />, color: 'var(--primary)' },
-            { label: 'Tugas Hari Ini', value: tasks.filter(t => new Date(t.created_at).toDateString() === new Date().toDateString()).length, icon: <Clock size={18} />, color: '#10b981' },
-            { label: 'Efisiensi', value: '92%', icon: <CheckCircle2 size={18} />, color: '#8b5cf6' },
-            { label: 'Halaman', value: `${pagination.page}/${pagination.totalPages || 1}`, icon: <LayoutDashboard size={18} />, color: '#f59e0b' }
-          ].map((stat, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '40px', height: '40px', background: 'white', color: stat.color, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -2px rgba(0,0,0,0.05)' }}>
-                {stat.icon}
-              </div>
-              <div>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '0' }}>{stat.label}</p>
-                <p style={{ fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>{stat.value}</p>
-              </div>
-            </div>
-          ))}
-        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '40px', alignItems: 'start' }}>
           {/* Main Task List */}
@@ -510,7 +482,7 @@ export default function DashboardPage() {
                 <p style={{ fontSize: '14px', marginTop: '8px' }}>Mulai dengan menambahkan tugas baru di panel sebelah kanan</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 380px)', minHeight: '400px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 250px)', minHeight: '400px' }}>
                 <div 
                   className="custom-scrollbar"
                   style={{ 
