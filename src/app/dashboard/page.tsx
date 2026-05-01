@@ -441,7 +441,7 @@ export default function DashboardPage() {
              <div style={{ position: 'relative', width: '320px' }}>
                 <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: 10 }} />
                 <input 
-                  placeholder="Cari sesuatu..." 
+                  placeholder="Cari tugas..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{ 
