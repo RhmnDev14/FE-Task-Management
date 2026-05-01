@@ -19,6 +19,7 @@ import {
   Inbox,
   AlertCircle,
   User,
+  Users,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -35,6 +36,12 @@ interface Task {
   id_user: string;
   created_at: string;
   updated_at: string;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 interface JWTPayload {
@@ -69,6 +76,10 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayAvatarUrl, setDisplayAvatarUrl] = useState<string | null>(null);
 
+  // Group state
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [isGroupsLoading, setIsGroupsLoading] = useState(true);
+
   // New task form state
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -87,6 +98,7 @@ export default function DashboardPage() {
       setUserId(decoded.id);
       fetchTasks(storedToken);
       fetchProfile(storedToken);
+      fetchGroups(storedToken);
     } catch (err) {
       console.error('Failed to decode token', err);
       localStorage.removeItem('auth_token');
@@ -122,6 +134,20 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Failed to fetch profile', err);
+    }
+  };
+
+  const fetchGroups = async (tk: string) => {
+    setIsGroupsLoading(true);
+    try {
+      const response = await axios.get('/api/groups', {
+        headers: { Authorization: `Bearer ${tk}` }
+      });
+      setGroups(response.data.items || []);
+    } catch (err) {
+      console.error('Failed to fetch groups', err);
+    } finally {
+      setIsGroupsLoading(false);
     }
   };
 
@@ -316,8 +342,91 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
-        <header style={{ 
+      <div style={{ display: 'flex', width: '100%', alignItems: 'flex-start' }}>
+        {/* Left Sidebar for Groups */}
+        <aside style={{ 
+          width: '260px', 
+          padding: '32px 16px', 
+          borderRight: '1px solid var(--card-border)', 
+          minHeight: 'calc(100vh - 73px)',
+          position: 'sticky',
+          top: '73px',
+          background: 'var(--card-bg)'
+        }}>
+          <h2 style={{ 
+            fontSize: '12px', 
+            fontWeight: 700, 
+            color: 'var(--text-muted)', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.5px', 
+            marginBottom: '16px', 
+            padding: '0 12px',
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px' 
+          }}>
+            <Users size={16} />
+            Grup Pengguna
+          </h2>
+          {isGroupsLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '20px' }}>
+               <Loader2 className="animate-spin" size={24} color="var(--primary)" />
+            </div>
+          ) : groups.length === 0 ? (
+            <div style={{ 
+              padding: '16px', 
+              background: 'var(--card-bg)', 
+              borderRadius: '12px', 
+              border: '1px dashed var(--card-border)',
+              textAlign: 'center'
+            }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Belum ada grup.</p>
+            </div>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {groups.map(group => (
+                <li key={group.id}>
+                  <Link href={`/dashboard?group_id=${group.id}`} style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '12px', 
+                    padding: '10px 12px', 
+                    borderRadius: '10px', 
+                    color: 'var(--foreground)',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    background: 'transparent',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(79, 70, 229, 0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '8px', 
+                      background: 'rgba(79, 70, 229, 0.1)', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      color: 'var(--primary)',
+                      fontWeight: 700,
+                      fontSize: '14px'
+                    }}>
+                      {group.name.charAt(0).toUpperCase()}
+                    </div>
+                    {group.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+
+        <main style={{ flex: 1, padding: '40px 60px', minWidth: 0, display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: '100%', maxWidth: '1140px' }}>
+          <header style={{ 
           marginBottom: '32px', 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -401,16 +510,17 @@ export default function DashboardPage() {
                 <p style={{ fontSize: '14px', marginTop: '8px' }}>Mulai dengan menambahkan tugas baru di panel sebelah kanan</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 380px)', minHeight: '400px' }}>
                 <div 
                   className="custom-scrollbar"
                   style={{ 
-                    maxHeight: '600px', 
+                    flex: 1, 
                     overflowY: 'auto', 
                     paddingRight: '12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '16px'
+                    gap: '16px',
+                    marginBottom: '16px'
                   }}
                 >
                   <AnimatePresence>
@@ -681,7 +791,9 @@ export default function DashboardPage() {
             </div>
           </aside>
         </div>
-      </main>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
