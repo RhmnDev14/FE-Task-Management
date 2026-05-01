@@ -20,6 +20,7 @@ import {
   AlertCircle,
   User,
   Users,
+  Bell,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -41,6 +42,14 @@ interface Task {
 interface Group {
   id: string;
   name: string;
+  created_at: string;
+}
+
+interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  read_at: string | null;
   created_at: string;
 }
 
@@ -80,6 +89,12 @@ export default function DashboardPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isGroupsLoading, setIsGroupsLoading] = useState(true);
 
+  // Notification state
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
+
   // New task form state
   const [newTaskName, setNewTaskName] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
@@ -99,6 +114,8 @@ export default function DashboardPage() {
       fetchTasks(storedToken);
       fetchProfile(storedToken);
       fetchGroups(storedToken);
+      fetchNotifications(storedToken);
+      fetchUnreadCount(storedToken);
     } catch (err) {
       console.error('Failed to decode token', err);
       localStorage.removeItem('auth_token');
@@ -148,6 +165,54 @@ export default function DashboardPage() {
       console.error('Failed to fetch groups', err);
     } finally {
       setIsGroupsLoading(false);
+    }
+  };
+
+  const fetchNotifications = async (tk: string) => {
+    setIsNotificationsLoading(true);
+    try {
+      const response = await axios.get('/api/notifications', {
+        headers: { Authorization: `Bearer ${tk}` }
+      });
+      const data = response.data.items || response.data || [];
+      setNotifications(data);
+    } catch (err) {
+      console.error('Failed to fetch notifications', err);
+    } finally {
+      setIsNotificationsLoading(false);
+    }
+  };
+
+  const fetchUnreadCount = async (tk: string) => {
+    try {
+      const response = await axios.get('/api/notifications/unread-count', {
+        headers: { Authorization: `Bearer ${tk}` }
+      });
+      setUnreadCount(response.data.count || 0);
+    } catch (err) {
+      console.error('Failed to fetch unread count', err);
+    }
+  };
+
+  const handleToggleNotifications = async () => {
+    const nextState = !showNotifications;
+    setShowNotifications(nextState);
+    
+    if (nextState && token) {
+      const unreadIds = notifications.filter(n => !n.read_at).map(n => n.id);
+      if (unreadIds.length > 0) {
+        try {
+          await axios.put('/api/notifications/read', { ids: unreadIds }, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setNotifications(prev => prev.map(n => 
+            unreadIds.includes(n.id) ? { ...n, read_at: new Date().toISOString() } : n
+          ));
+          setUnreadCount(0);
+        } catch (err) {
+          console.error('Failed to mark notifications as read', err);
+        }
+      }
     }
   };
 
@@ -284,7 +349,103 @@ export default function DashboardPage() {
           <span style={{ fontWeight: 700, fontSize: '20px', letterSpacing: '-0.5px' }}>Aura</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', position: 'relative' }}>
+          <button 
+            onClick={handleToggleNotifications}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: 'rgba(79, 70, 229, 0.05)',
+              border: '1px solid rgba(79, 70, 229, 0.1)',
+              color: 'var(--foreground)',
+              transition: 'all 0.2s',
+              cursor: 'pointer',
+              position: 'relative'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(79, 70, 229, 0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(79, 70, 229, 0.05)'}
+          >
+            <Bell size={20} />
+            {unreadCount > 0 && (
+              <span style={{ 
+                position: 'absolute', 
+                top: '-5px', 
+                right: '-5px', 
+                minWidth: '20px', 
+                height: '20px', 
+                borderRadius: '10px', 
+                background: '#ef4444', 
+                border: '2px solid white',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px'
+              }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Popup */}
+          <AnimatePresence>
+            {showNotifications && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                style={{
+                  position: 'absolute',
+                  top: '60px',
+                  right: '0',
+                  width: '320px',
+                  background: 'white',
+                  borderRadius: '20px',
+                  border: '1px solid var(--card-border)',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                  zIndex: 100,
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--card-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700 }}>Notifikasi</h3>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{notifications.length} Total</span>
+                </div>
+                <div style={{ maxHeight: '400px', overflowY: 'auto', padding: '8px' }}>
+                  {isNotificationsLoading ? (
+                    <div style={{ padding: '20px', textAlign: 'center' }}><Loader2 className="animate-spin" size={20} /></div>
+                  ) : notifications.length === 0 ? (
+                    <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <Inbox size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                      <p style={{ fontSize: '13px' }}>Tidak ada notifikasi</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {notifications.map(n => (
+                        <div key={n.id} style={{ 
+                          padding: '12px 16px', 
+                          borderRadius: '12px',
+                          background: n.read_at ? 'transparent' : 'rgba(79, 70, 229, 0.05)',
+                          transition: 'background 0.2s'
+                        }}>
+                          <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>{n.title}</h4>
+                          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{n.body}</p>
+                          <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px', opacity: 0.7 }}>{new Date(n.created_at).toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {profile && (
             <Link href="/profile" style={{ 
               display: 'flex', 
